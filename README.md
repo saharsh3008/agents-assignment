@@ -1,60 +1,67 @@
-LiveKit Intelligent Interruption Handler
+# LiveKit Intelligent Interruption Handler
 
-A context-aware speech interaction system that enables real-time interruption handling without modifying VAD or STT — solving the VAD/STT race condition using an intelligent filtering layer.
+A context-aware speech interaction system enabling **real-time interruption handling** without modifying VAD or STT — solving the VAD/STT race condition using an intelligent filtering layer.
 
-🎯 Solution Overview
+---
 
-This implementation introduces a context-aware filtering layer that distinguishes between:
+## 🎯 Solution Overview
 
-Passive filler words → should not interrupt the agent
+This project implements a **Filtering Layer** that distinguishes between:
 
-Actual interruption commands → should interrupt instantly
+- Passive filler words (ignored while agent is speaking)  
+- Command words (trigger instant interruption)  
+- Normal responses (processed when agent is silent)
 
-Normal user responses → should be processed normally
+This ensures natural conversational flow with accurate interruption behavior.
 
-This enables natural real-time voice interactions without unintended interruptions.
+---
 
-🔑 Key Challenge Solved
-❌ The Problem
+## 🔑 Key Challenge Solved
 
-VAD fires immediately when the user makes a sound, interrupting the agent before STT final transcription arrives — even if the user only said:
+### ❌ Problem  
+VAD fires immediately when user makes a sound, interrupting the agent **before STT final transcript arrives**, even for:
 
-"yeah", "ok", "hmm"
+- “yeah”
+- “ok”
+- “hmm”
 
-The system cannot “undo” the interruption once it happens.
+### ✅ Solution  
+A filtering layer that decides whether to process or ignore STT events based on:
 
-✅ The Solution
+1. **Agent State** (`speaking` / `silent`)
+2. **Transcript Classification** (filler / command / meaningful)
 
-A filtering layer that decides whether to process or ignore STT transcripts based on:
+---
 
-Agent Speaking State (is_speaking)
+## 📋 Core Logic Matrix
 
-Transcript Content
+| User Input            | Agent State | Behavior     | Explanation |
+|----------------------|-------------|--------------|-------------|
+| "yeah / ok / hmm"    | Speaking    | IGNORE       | Passive backchannel |
+| "wait / stop / no"   | Speaking    | INTERRUPT    | Valid interruption |
+| "yeah"               | Silent      | RESPOND      | Treated as meaningful |
+| "yeah but wait"      | Speaking    | INTERRUPT    | Contains command word |
 
-Filler Words
+---
 
-Command Words
+## 🏗 Architecture
 
-Substantial Input
-
-📋 Core Logic Matrix
-User Input	Agent State	Behavior	Explanation
-“yeah / ok / hmm”	Speaking	IGNORE	Agent continues speaking; no interruption
-“wait / stop / no”	Speaking	INTERRUPT	Agent speech stops instantly
-“yeah”	Silent	RESPOND	Treated as meaningful input
-“yeah but wait”	Speaking	INTERRUPT	Contains a command word
-🏗️ System Architecture
 User Speech
-    ↓
-   VAD → STT → [ FILTER LAYER ] → LLM → TTS → Agent Speech
-                            ↑
-                Intelligent Interruption Handler
+↓
+VAD → STT → [ FILTER LAYER ] → LLM → TTS → Agent Speech
+↑
+Intelligent Interruption Handler
 
+bash
+Copy code
 
-The filtering layer is positioned after STT but before the LLM, making it the optimal interception point.
+---
 
-🧩 Key Components
-1️⃣ Configuration (Easy to Edit)
+## 🧩 Key Components
+
+### 1. Configurable Word Lists
+
+```python
 FILLER_WORDS = {
     'yeah', 'yep', 'ok', 'okay', 'hmm', 'mhm', 'mm',
     'uh-huh', 'uh huh', 'right', 'sure', 'alright'
@@ -64,203 +71,173 @@ COMMAND_WORDS = {
     'wait', 'stop', 'no', 'hold', 'pause',
     'actually', 'but', 'however', 'hang on'
 }
+```
+### 2. SmartInterruptionHandler
+Tracks is_speaking
 
-2️⃣ SmartInterruptionHandler
+Classifies transcripts
 
-Tracks state and decides whether to:
+Decides whether to interrupt, ignore, or pass to LLM
 
-Ignore the transcript
+### 3. FilteredSTT / FilteredSTTStream
+Intercepts FINAL_TRANSCRIPT
 
-Process it
+Filters filler words while speaking
 
-Interrupt the agent
+Allows command-based interruption
 
-3️⃣ FilteredSTT / FilteredSTTStream
+Passes all inputs when silent
 
-Intercepts FINAL_TRANSCRIPT events and:
-
-Skips filler words when agent is speaking
-
-Allows command words to interrupt
-
-Allows all words when agent is silent
-
-4️⃣ Speaking-State Tracking
-
-Wrapping session.say():
-
+### 4. Speaking State Tracking
+```python
+Copy code
 async def tracked_say(text: str, **kwargs):
     handler.is_speaking = True
     try:
         return await original_say(text, **kwargs)
     finally:
         handler.is_speaking = False
+```
+
 
 🚀 Setup & Running
-Prerequisites
-
+### Prerequisites
 Python 3.8+
 
-LiveKit account
+LiveKit server + credentials
 
-API keys:
+API keys: Groq, Cartesia, Deepgram
 
-Groq
-
-Cartesia
-
-Deepgram
-
-📦 Install
+### Installation
+```bash
 git clone https://github.com/Dark-Sys-Jenkins/agents-assignment
 cd agents-assignment
-
-
+```
 Create virtual environment:
 
+```bash
 python -m venv venv
-source venv/bin/activate       # Windows: venv\Scripts\activate
-
-
+source venv/bin/activate   # Windows: venv\Scripts\activate
+```
 Install dependencies:
+```bash
 
 pip install -r requirements.txt
-
-🔐 Configure Environment Variables
-
+Configure Environment
 Create .env:
+```
+```ini
 
-CARTESIA_API_KEY=your_key_here
-GROQ_API_KEY=your_key_here
-DEEPGRAM_API_KEY=your_key_here
+CARTESIA_API_KEY=your_key
+GROQ_API_KEY=your_key
+DEEPGRAM_API_KEY=your_key
 LIVEKIT_URL=your_livekit_url
 LIVEKIT_API_KEY=your_api_key
 LIVEKIT_API_SECRET=your_api_secret
+```
+Run the Agent
+```bash
 
-▶ Run the Agent
 python agent.py dev
 
+
 🧪 Testing Scenarios
-✅ Test Case 1 — Filler Words While Speaking
+1. Filler Words While Speaking
+User says: “yeah”
+✔ Filler ignored
+✔ Agent continues speaking
 
-Agent is speaking a long paragraph
+2. Filler Words When Silent
+User says: “yeah”
+✔ Treated as valid response
 
-User says: "yeah", "okay", "hmm"
+3. Command Interruption
+User says: “stop / wait”
+✔ Agent stops instantly
 
-Expected: Agent continues → PASS
+4. Mixed Input
+User says: “yeah but wait”
+✔ Interrupt triggered due to keyword
 
-✅ Test Case 2 — Filler Words When Agent Is Silent
-
-User says "yeah"
-
-Expected: Process as real response → PASS
-
-✅ Test Case 3 — Command Interruption
-
-User says “stop”, “wait”
-
-Expected: Agent stops immediately → PASS
-
-✅ Test Case 4 — Mixed Input
-
-User: “yeah but wait”
-
-Expected: Interrupt → PASS
-
-📊 Log Output Examples
+📊 Example Log Output
+```vbnet
 🗣️ Agent SPEAKING: Hello! I'm your intelligent assistant...
-
 ❌ [SPEAKING] FILLER ignored: 'yeah'
 ✅ [SPEAKING] COMMAND detected → Interrupt: 'wait'
-
 🤐 Agent SILENT (ready to listen)
 ✅ [SILENT] Process: 'yeah'
+```
 
 🔧 Customization
-Add a new filler word
+Add a filler word:
+```python
 FILLER_WORDS.add("uhoh")
-
-Add a new command word
+```
+Add a command word:
+```python
 COMMAND_WORDS.add("interrupt")
-
-Modify agent personality
-agent = Agent(
-    instructions="Your custom instructions here..."
-)
+```
+Change agent personality:
+```python
+instructions="Your custom instructions here..."
+```
 
 🎓 Technical Decisions
-Why Filter at STT Level?
+Why filter at STT level?
+VAD → too early (no transcript)
 
-VAD level → No transcript yet
+LLM → too late (interruption already triggered)
 
-LLM level → Too late (interruption already triggered)
+STT → perfect interception point
 
-STT level → Perfect balance
+Why not modify VAD?
+Assignment requirement
 
-Why Not Modify VAD?
+Must remain sensitive for real-time detection
 
-Assignment rule: VAD must remain unmodified
-Also, VAD needs to remain sensitive and fast.
-
-How the VAD-STT Race Condition Is Solved
-
-Let VAD trigger naturally
+Solving the VAD/STT race condition:
+Let VAD trigger interruption
 
 Wait for STT final transcript
 
-Decide whether to treat it as interruption or ignore it
+Decide whether to:
 
-Prevents premature stopping for filler words
+ignore
+
+process
+
+treat as interruption
 
 📈 Performance
+Decision latency: <50ms
 
-Decision latency: < 50 ms
+Smooth agent speech
 
-Zero stutter or awkward pauses
+Zero stutter or false interruptions
 
-Smooth conversational flow
+Natural conversation flow
 
 🔍 Troubleshooting
-Agent not responding?
+Issue	Fix
+Agent not responding	Check LiveKit connection & .env
+Filler not ignored	Ensure agent is speaking & word is in list
+Wrong interruption	Adjust COMMAND_WORDS
 
-Check LiveKit connection
+📝 Submission Checklist
+ Filtering based on agent state
 
-Verify .env
+ Filler ignored while speaking
 
-Check logs
+ Commands interrupt immediately
 
-Filler words not ignored?
+ Works in real-time
 
-Is the agent speaking?
+ Clean, modular code
 
-Is the word listed?
+ Fully documented
 
-Check STT output logs
+ Test cases included
 
-Interrupt triggers at wrong time?
-
-Review COMMAND_WORDS configuration
-
-📝 Code Quality Highlights
-
-✔ Modular architecture
-✔ Fully configurable
-✔ Clean logging
-✔ Detailed documentation
-✔ Assignment-ready
-
-🎬 Submission Checklist
-
- Intelligent interruption handling
-
- Backchannel filtering
-
- Command-based interruption
-
- Configurable vocabulary
-
- Clean & modular code
-
- Full documentation
-
- Testing included
+👤 Author
+Saharsh
+Branch: feature/interrupt-handler-saharsh
