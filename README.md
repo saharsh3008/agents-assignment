@@ -77,13 +77,11 @@ venv\Scripts\activate          # Windows
 ```
 ## 3️⃣ Install dependencies
 ```bash
-Copy code
 pip install -r requirements.txt
 ## 4️⃣ Add your environment variables
 Create a .env file:
 
 ini
-Copy code
 LIVEKIT_API_KEY=your_key
 LIVEKIT_API_SECRET=your_secret
 GROQ_API_KEY=your_key
@@ -92,7 +90,6 @@ DEEPGRAM_API_KEY=your_key
 ```
 ## 5️⃣ Run the Agent
 ```bash
-Copy code
 python agent.py
 ```
 
