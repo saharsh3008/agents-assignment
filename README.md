@@ -78,9 +78,10 @@ venv\Scripts\activate          # Windows
 ## 3️⃣ Install dependencies
 ```bash
 pip install -r requirements.txt
+```
 ## 4️⃣ Add your environment variables
 Create a .env file:
-
+```bash
 ini
 LIVEKIT_API_KEY=your_key
 LIVEKIT_API_SECRET=your_secret
