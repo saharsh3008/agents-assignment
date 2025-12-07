@@ -1,243 +1,125 @@
-# LiveKit Intelligent Interruption Handler
+# 🎙️ LiveKit Intelligent Interruption Handler  
+### Enhancing Real-Time Conversational Flow in AI Voice Agents
 
-A context-aware speech interaction system enabling **real-time interruption handling** without modifying VAD or STT — solving the VAD/STT race condition using an intelligent filtering layer.
-
----
-
-## 🎯 Solution Overview
-
-This project implements a **Filtering Layer** that distinguishes between:
-
-- Passive filler words (ignored while agent is speaking)  
-- Command words (trigger instant interruption)  
-- Normal responses (processed when agent is silent)
-
-This ensures natural conversational flow with accurate interruption behavior.
+🔗 **Demonstration Video:** *https://drive.google.com/file/d/1h9DUsZpNI-5waWcUFdSCM2hUE1ObmL8G/view?usp=sharing*
 
 ---
 
-## 🔑 Key Challenge Solved
+## 📌 Project Overview
 
-### ❌ Problem  
-VAD fires immediately when user makes a sound, interrupting the agent **before STT final transcript arrives**, even for:
+This project implements an **Intelligent Interruption Handling Layer** on top of the LiveKit Agent Framework.  
+The objective is to solve the issue where **passive acknowledgements** like “yeah”, “ok”, “hmm”, “uh-huh” incorrectly interrupt the agent while it's speaking.
 
-- “yeah”
-- “ok”
-- “hmm”
+Using the logic requirements defined in the assignment brief, this implementation ensures:
 
-### ✅ Solution  
-A filtering layer that decides whether to process or ignore STT events based on:
+- When **agent is speaking** → ignore “yeah/ok/hmm/right/uh-huh”
+- When **agent is silent** → respond normally
+- If user says **interruptive commands** (“stop”, “wait”, “no”) → agent stops immediately
+- Mixed sentences like **“yeah wait a sec”** → interruption is triggered correctly  
+- **No modification to VAD** — the logic sits above VAD
 
-1. **Agent State** (`speaking` / `silent`)
-2. **Transcript Classification** (filler / command / meaningful)
+Your full implementation lives inside:
 
----
-
-## 📋 Core Logic Matrix
-
-| User Input            | Agent State | Behavior     | Explanation |
-|----------------------|-------------|--------------|-------------|
-| "yeah / ok / hmm"    | Speaking    | IGNORE       | Passive backchannel |
-| "wait / stop / no"   | Speaking    | INTERRUPT    | Valid interruption |
-| "yeah"               | Silent      | RESPOND      | Treated as meaningful |
-| "yeah but wait"      | Speaking    | INTERRUPT    | Contains command word |
+MY_INTERRUPT_AGENT/
 
 ---
 
-## 🏗 Architecture
+## ✨ Features Implemented
 
-User Speech
-↓
-VAD → STT → [ FILTER LAYER ] → LLM → TTS → Agent Speech
-↑
-Intelligent Interruption Handler
+### ✅ 1. Configurable Ignore List
+Soft acknowledgements that should be ignored while the agent is speaking:
+['yeah', 'ok', 'okay', 'hmm', 'right', 'uh-huh', 'uh huh']
 
-bash
-Copy code
+csharp
+
+
+### ✅ 2. Speaking-State-Aware Filtering
+- If agent is speaking → soft words are ignored  
+- If agent is silent → soft words become valid inputs  
+
+### ✅ 3. Mixed Command Handling
+Presence of a real command:
+["stop", "wait", "no", "hold on"]
+
+→ triggers interruption immediately.
+
+### ✅ 4. Zero-Latency User Experience
+The agent does not pause, glitch, or stutter.
 
 ---
 
-## 🧩 Key Components
+# 📂 Repository Structure
 
-### 1. Configurable Word Lists
-
-```python
-FILLER_WORDS = {
-    'yeah', 'yep', 'ok', 'okay', 'hmm', 'mhm', 'mm',
-    'uh-huh', 'uh huh', 'right', 'sure', 'alright'
-}
-
-COMMAND_WORDS = {
-    'wait', 'stop', 'no', 'hold', 'pause',
-    'actually', 'but', 'however', 'hang on'
-}
-```
-### 2. SmartInterruptionHandler
-Tracks is_speaking
-
-Classifies transcripts
-
-Decides whether to interrupt, ignore, or pass to LLM
-
-### 3. FilteredSTT / FilteredSTTStream
-Intercepts FINAL_TRANSCRIPT
-
-Filters filler words while speaking
-
-Allows command-based interruption
-
-Passes all inputs when silent
-
-### 4. Speaking State Tracking
-```python
-Copy code
-async def tracked_say(text: str, **kwargs):
-    handler.is_speaking = True
-    try:
-        return await original_say(text, **kwargs)
-    finally:
-        handler.is_speaking = False
-```
+agents-assignment/
+│
+├── MY_INTERRUPT_AGENT/
+│ ├── agent.py
+│ ├── README.md
+│ ├── requirements.txt
+│
+└── other assignment folders
 
 
-🚀 Setup & Running
-### Prerequisites
-Python 3.8+
+---
 
-LiveKit server + credentials
+# 🚀 How to Run This Project (MY_INTERRUPT_AGENT)
 
-API keys: Groq, Cartesia, Deepgram
-
-### Installation
+## 1️⃣ Clone the repository
 ```bash
-git clone https://github.com/Dark-Sys-Jenkins/agents-assignment
-cd agents-assignment
+git clone https://github.com/saharsh3008/agents-assignment.git
+cd agents-assignment/MY_INTERRUPT_AGENT
 ```
-Create virtual environment:
-
+## 2️⃣ Create virtual environment
 ```bash
 python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+source venv/bin/activate       # Mac/Linux
+venv\Scripts\activate          # Windows
 ```
-Install dependencies:
+## 3️⃣ Install dependencies
 ```bash
-
+Copy code
 pip install -r requirements.txt
-Configure Environment
-Create .env:
-```
-```ini
+## 4️⃣ Add your environment variables
+Create a .env file:
 
-CARTESIA_API_KEY=your_key
+ini
+Copy code
+LIVEKIT_API_KEY=your_key
+LIVEKIT_API_SECRET=your_secret
 GROQ_API_KEY=your_key
+CARTESIA_API_KEY=your_key
 DEEPGRAM_API_KEY=your_key
-LIVEKIT_URL=your_livekit_url
-LIVEKIT_API_KEY=your_api_key
-LIVEKIT_API_SECRET=your_api_secret
 ```
-Run the Agent
+## 5️⃣ Run the Agent
 ```bash
-
-python agent.py dev
-
-
-🧪 Testing Scenarios
-1. Filler Words While Speaking
-User says: “yeah”
-✔ Filler ignored
-✔ Agent continues speaking
-
-2. Filler Words When Silent
-User says: “yeah”
-✔ Treated as valid response
-
-3. Command Interruption
-User says: “stop / wait”
-✔ Agent stops instantly
-
-4. Mixed Input
-User says: “yeah but wait”
-✔ Interrupt triggered due to keyword
-
-📊 Example Log Output
-```vbnet
-🗣️ Agent SPEAKING: Hello! I'm your intelligent assistant...
-❌ [SPEAKING] FILLER ignored: 'yeah'
-✅ [SPEAKING] COMMAND detected → Interrupt: 'wait'
-🤐 Agent SILENT (ready to listen)
-✅ [SILENT] Process: 'yeah'
+Copy code
+python agent.py
 ```
 
-🔧 Customization
-Add a filler word:
-```python
-FILLER_WORDS.add("uhoh")
-```
-Add a command word:
-```python
-COMMAND_WORDS.add("interrupt")
-```
-Change agent personality:
-```python
-instructions="Your custom instructions here..."
-```
+# 🧪 Test Scenarios Demonstrated
+✔ Scenario 1 — Soft words ignored while agent is talking
+✔ Scenario 2 — “Yeah” is processed normally when agent is silent
+✔ Scenario 3 — “Stop/Wait/No” interrupt immediately
+✔ Scenario 4 — Mixed inputs like “yeah but wait” trigger interruption
 
-🎓 Technical Decisions
-Why filter at STT level?
-VAD → too early (no transcript)
+# 🛠️ How It Works (Summary)
+Inside agent.py:
 
-LLM → too late (interruption already triggered)
+Tracks agent speaking state
 
-STT → perfect interception point
+Processes STT before deciding to interrupt
 
-Why not modify VAD?
-Assignment requirement
+Filters passive words
 
-Must remain sensitive for real-time detection
+Detects interruptive commands
 
-Solving the VAD/STT race condition:
-Let VAD trigger interruption
+Ensures uninterrupted smooth audio output
 
-Wait for STT final transcript
+The logic ensures no stutter, no pauses, no hiccups — exactly as required.
 
-Decide whether to:
-
-ignore
-
-process
-
-treat as interruption
-
-📈 Performance
-Decision latency: <50ms
-
-Smooth agent speech
-
-Zero stutter or false interruptions
-
-Natural conversation flow
-
-🔍 Troubleshooting
-Issue	Fix
-Agent not responding	Check LiveKit connection & .env
-Filler not ignored	Ensure agent is speaking & word is in list
-Wrong interruption	Adjust COMMAND_WORDS
-
-📝 Submission Checklist
- Filtering based on agent state
-
- Filler ignored while speaking
-
- Commands interrupt immediately
-
- Works in real-time
-
- Clean, modular code
-
- Fully documented
-
- Test cases included
-
-👤 Author
-Saharsh
-Branch: feature/interrupt-handler-saharsh
+# 📜 Submission Checklist
+✔ New branch: interrupt-handler-saharsh
+✔ Folder: MY_INTERRUPT_AGENT
+✔ Working agent logic
+✔ README added
+✔ Video demonstration (add link at top)
