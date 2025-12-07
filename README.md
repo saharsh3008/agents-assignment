@@ -90,7 +90,7 @@ DEEPGRAM_API_KEY=your_key
 ```
 ## 5️⃣ Run the Agent
 ```bash
-python agent.py
+python agent.py dev
 ```
 
 # 🧪 Test Scenarios Demonstrated
